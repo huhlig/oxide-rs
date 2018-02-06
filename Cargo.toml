@@ -1,0 +1,9 @@
+[package]
+name = "oxide-rs"
+version = "0.1.0"
+authors = ["Hans W. Uhlig <hans.uhlig@ibm.com>"]
+description = "Oxide is a roguelike support library"
+
+[dependencies]
+rand = "0.4"
+serde = "1.0"

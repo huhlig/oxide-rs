@@ -14,50 +14,114 @@
 // limitations under the License.
 //
 //!
-//! Event Framework
+//! Application Framework
 //!
 
-use ::event::Event;
-use ::state::{State, StateMachine};
-use std::time::Instant;
+use super::services::Engine;
+use super::event::Event;
+use super::state::{State, StateManager};
+use std::any::Any;
 use std::convert::From;
+use std::time::Instant;
 
 ///
 ///
 ///
-pub struct Application<'a> {
-    states: StateMachine<'a>,
+pub struct Application<'a, D>
+    where
+        D: Any + Send + Sync
+{
+    states: StateManager<'a>,
+    engine: Engine,
+    frame_time: f64,
+    data: D,
 }
 
-const dt: f64 = 0.01;
-
-impl<'a> Application<'a> {
-    pub(crate) fn create<S: State + 'a>(initial_state: S) -> Application<'a> {
-        Application {
-            states: StateMachine::new(initial_state),
-        }
+impl<'a, D> Application<'a, D> {
+    pub(crate) fn create<S: State + 'a>(initial_state: S, data: D) -> Application<'a, D> {
+        let states = StateManager::new(initial_state);
+        let engine = Engine {};
+        let frame_time = 1.0 / 30.0;
+        Application { states, engine, frame_time, data }
     }
     pub fn run(&self) {
         let mut t = 0.0;
-        let mut current_time = Instant::now();
+        let mut last_update = Instant::now();
         let mut accumulator = 0.0;
 
         loop {
-            let new_time = Instant::now();
-            let mut frame_time = std::time::Instant::from(new_time, current_time).as_nanos / 1_000_000_000; // from ns to s
-            current_time = new_time;
 
-            accumulator += frame_time;
-
-            while accumulator >= dt {
+            while accumulator < self.frame_time {
+                let new_time = Instant::now();
+                let mut delta = Instant::from(new_time, current_time).as_nanos / 1_000_000_000; // from ns to s
+                accumulator += frame_time;
+                current_time = new_time;
                 // Handle Events Here
-                self.states.handle(Event::Empty);
-                self.states.update(dt);
-                accumulator -= dt;
+                //self.states.handle(Event::Empty);
+                //self.states.update(dt);
+                accumulator += dt;
                 t += dt;
             }
 
-            self.states.render();
+            self.states.render(&mut self.engine);
+
         }
+    }
+}
+
+#[cfg(tests)]
+mod tests {
+    use super::*;
+
+    struct State1;
+
+    impl State for State1 {
+        fn initialize(&mut self, engine: &mut Engine) {
+            println!("State1 Initialized");
+        }
+        fn cleanup(&mut self, engine: &mut Engine) {
+            println!("State1 Cleaned up");
+        }
+        fn suspend(&mut self, engine: &mut Engine) {
+            println!("State1 Suspended");
+        }
+        fn resume(&mut self, engine: &mut Engine) {
+            println!("State1 Resumed");
+        }
+        fn handle(&mut self, engine: &mut Engine, event: Event) -> Transition {
+            println!("State1 Handled {:?}", event);
+        }
+        fn update(&mut self, engine: &mut Engine, delta: f64) -> Transition {
+            println!("State1 Updated {:?}", event);
+            if self.0 > 0 {
+                self.0 -= 1;
+                Transition::Continue
+            } else if self.1 > 0 {
+                self.1 -= 1;
+                Transition::Push(Box::new(State2(10)))
+            } else {
+                Transition::Switch(Box::new(State3(10)))
+            }
+        }
+        fn render(&mut self, engine: &mut Engine) {
+            println!("State1 Rendered");
+        }
+    }
+
+
+    #[test]
+    fn switch_pop() {
+        let mut sm = StateMachine::new(State1(10, 5));
+        sm.start();
+
+        for _ in 0..8 {
+            for _ in 0..4 {
+                sm.update();
+            }
+            sm.render();
+            assert!(sm.active());
+        }
+
+        assert!(!sm.active());
     }
 }

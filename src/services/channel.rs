@@ -13,23 +13,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//!
-//! Event Framework
-//!
 
-use std::fmt::{Debug, Error, Formatter};
-
-///
-/// Event
-///
-pub enum Event {
-    Empty,
+pub trait Publisher<T>
+    where
+        T: Any + Send + Sync
+{
+    /// Offer a value to the queue
+    fn offer(&mut self, value: T) -> bool;
+    ///
+    fn publish(&mut self, value: T);
 }
 
-impl Debug for Event {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            &Event::Empty => { write!(f, "Event::Empty") }
-        }
+pub trait Subscriber<T>
+    where
+        T: Any + Send + Sync
+{
+    fn poll(&mut self) -> Result<(),Error>;
+    fn remove(&mut self) -> Result<T, Error>;
+}
+
+pub struct Channel {
+
+}
+
+impl Channel {
+    pub fn new() -> Channel {
+
     }
 }

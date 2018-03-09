@@ -14,22 +14,20 @@
 // limitations under the License.
 //
 //!
-//! Event Framework
+//! Resource System
 //!
 
-use std::fmt::{Debug, Error, Formatter};
+use std::any::TypeId;
 
-///
-/// Event
-///
-pub enum Event {
-    Empty,
-}
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct ResourceId(pub TypeId);
 
-impl Debug for Event {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            &Event::Empty => { write!(f, "Event::Empty") }
-        }
+impl ResourceId {
+    /// Creates a new resource id from a given type.
+    pub fn new<T: Resource>() -> Self {
+        ResourceId(TypeId::of::<T>())
     }
 }
+
+pub trait Resource: Any + Send + Sync {}
+

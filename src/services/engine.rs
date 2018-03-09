@@ -13,23 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-//!
-//! Event Framework
-//!
 
-use std::fmt::{Debug, Error, Formatter};
 
-///
-/// Event
-///
-pub enum Event {
-    Empty,
+/// Engine API Layer
+pub struct Engine {
+
 }
 
-impl Debug for Event {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            &Event::Empty => { write!(f, "Event::Empty") }
-        }
-    }
+impl Engine {
+
 }

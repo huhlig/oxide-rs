@@ -14,22 +14,17 @@
 // limitations under the License.
 //
 //!
-//! Event Framework
+//! Resource System
 //!
 
-use std::fmt::{Debug, Error, Formatter};
+mod resource;
+mod resources;
 
-///
-/// Event
-///
-pub enum Event {
-    Empty,
-}
+pub use Resource;
 
-impl Debug for Event {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        match self {
-            &Event::Empty => { write!(f, "Event::Empty") }
-        }
-    }
+
+/// Trait for Runnable Systems
+pub trait Runnable<'a> {
+    ///
+    fn run(&mut self, resources:&'a Resources);
 }

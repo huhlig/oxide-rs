@@ -23,10 +23,11 @@ mod engine;
 mod event;
 mod services;
 mod state;
+mod version;
 
 pub use self::app::Application;
 pub use self::data::Data;
 pub use self::engine::Engine;
 pub use self::event::Event;
-pub use self::state::State;
-pub use self::state::Transition;
+pub use self::state::{State,Transition};
+pub use self::version::{Version, VERSION};

@@ -15,6 +15,7 @@
 //
 
 use super::data::Data;
+use super::Version;
 
 /// Engine API Layer
 pub struct Engine<D: Data> {
@@ -25,7 +26,13 @@ pub struct Engine<D: Data> {
 impl<D: Data> Engine<D> {
     pub(crate) fn new(data: D) -> Engine<D> {
         let frame_time = 1.0 / 30.0;
-        Engine { frame_time, data }
+        Engine {
+            frame_time,
+            data,
+        }
+    }
+    pub fn lib_version() -> Version {
+        super::VERSION
     }
     pub fn data(&mut self) -> &mut D {
         &mut self.data

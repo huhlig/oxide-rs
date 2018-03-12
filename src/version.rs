@@ -14,3 +14,28 @@
 // limitations under the License.
 //
 
+use std::fmt::{Display, Debug, Formatter, Result};
+
+pub struct Version {
+    major: &'static str,
+    minor: &'static str,
+    patch: &'static str,
+}
+
+impl Display for Version {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "v{}.{}.{})", self.major, self.minor, self.patch)
+    }
+}
+
+impl Debug for Version {
+    fn fmt(&self, f: &mut Formatter) -> Result {
+        write!(f, "v{}.{}.{})", self.major, self.minor, self.patch)
+    }
+}
+
+pub const VERSION: Version = Version {
+    major: env!("CARGO_PKG_VERSION_MAJOR"),
+    minor: env!("CARGO_PKG_VERSION_MINOR"),
+    patch: env!("CARGO_PKG_VERSION_PATCH"),
+};

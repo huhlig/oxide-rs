@@ -139,7 +139,6 @@ impl<'a, D: Data> StateManager<'a, D> {
             if let Some(mut state) = self.states.pop() {
                 state.cleanup(engine);
             }
-
             if let Some(state) = self.states.last_mut() {
                 state.resume(engine);
             } else {
@@ -278,14 +277,13 @@ mod tests {
         let mut sm = StateManager::new(State1(10, 5));
         sm.start(&mut engine);
 
-        for _ in 0..8 {
+        assert!(sm.active());
+        for _ in 0..21 {
             for _ in 0..4 {
                 sm.update(&mut engine, 0.1);
             }
             sm.render(&mut engine);
-            assert!(sm.active());
         }
-
         assert!(!sm.active());
     }
 }

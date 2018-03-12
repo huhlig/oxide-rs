@@ -14,12 +14,7 @@
 // limitations under the License.
 //
 
-
 /// Engine API Layer
-pub struct Engine {
-
-}
-
-impl Engine {
+pub trait Engine {
 
 }

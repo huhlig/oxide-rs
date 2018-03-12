@@ -14,9 +14,16 @@
 // limitations under the License.
 //
 
+use std::any::Any;
+use std::error::Error;
+
+enum ChannelError {
+    Full
+}
+
 pub trait Publisher<T>
     where
-        T: Any + Send + Sync
+        T: Any + Send + Sync + Sized
 {
     /// Offer a value to the queue
     fn offer(&mut self, value: T) -> bool;
@@ -26,18 +33,14 @@ pub trait Publisher<T>
 
 pub trait Subscriber<T>
     where
-        T: Any + Send + Sync
+        T: Any + Send + Sync + Sized
 {
-    fn poll(&mut self) -> Result<(),Error>;
+    fn poll(&mut self) -> Result<(), Error>;
     fn remove(&mut self) -> Result<T, Error>;
 }
 
-pub struct Channel {
-
-}
+pub struct Channel {}
 
 impl Channel {
-    pub fn new() -> Channel {
-
-    }
+    pub fn new() -> Channel {}
 }

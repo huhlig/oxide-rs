@@ -17,7 +17,7 @@
 //! State Engine
 //!
 
-use super::services::Engine;
+use super::engine::Engine;
 use super::event::Event;
 
 /// State Transition commands
@@ -75,32 +75,32 @@ impl<'a> StateManager<'a> {
     }
     pub(crate) fn start(&mut self, engine: &mut Engine) {
         if !self.active {
-            self.states.last_mut().unwrap().initialize();
+            self.states.last_mut().unwrap().initialize(engine);
             self.active = true;
         }
     }
     pub(crate) fn handle(&mut self, engine: &mut Engine, event: Event) {
         if self.active {
             let transition = match self.states.last_mut() {
-                Some(state) => state.handle(event),
+                Some(state) => state.handle(engine, event),
                 None => Transition::Continue,
             };
-            self.transition(transition);
+            self.transition(engine, transition);
         }
     }
     pub(crate) fn update(&mut self, engine: &mut Engine, delta: f64) {
         if self.active {
             let transition = match self.states.last_mut() {
-                Some(state) => state.update(delta),
+                Some(state) => state.update(engine, delta),
                 None => Transition::Continue,
             };
-            self.transition(transition);
+            self.transition(engine, transition);
         }
     }
     pub(crate) fn render(&mut self, engine: &mut Engine) {
         if self.active {
             match self.states.last_mut() {
-                Some(state) => state.render(),
+                Some(state) => state.render(engine),
                 None => Transition::Continue,
             };
         }
@@ -108,56 +108,56 @@ impl<'a> StateManager<'a> {
     pub(crate) fn stop(&mut self, engine: &mut Engine) {
         if self.active {
             while let Some(mut state) = self.states.pop() {
-                state.cleanup();
+                state.cleanup(engine);
             }
             self.active = false;
         }
     }
-    fn transition(&mut self, transition: Transition) {
+    fn transition(&mut self, engine: &mut Engine, transition: Transition) {
         if self.active {
             match transition {
                 Transition::Continue => (),
-                Transition::Pop => self.pop(),
-                Transition::Push(state) => self.push(state),
-                Transition::Switch(state) => self.switch(state),
-                Transition::Halt => self.stop(),
+                Transition::Pop => self.pop(engine),
+                Transition::Push(state) => self.push(engine, state),
+                Transition::Switch(state) => self.switch(engine, state),
+                Transition::Halt => self.stop(engine),
             }
         }
     }
-    fn push(&mut self, state: Box<State>) {
+    fn push(&mut self, engine: &mut Engine, state: Box<State>) {
         if self.active {
             // Suspend currently active state.
             if let Some(state) = self.states.last_mut() {
-                state.suspend();
+                state.suspend(engine);
             }
 
             self.states.push(state);
             let state = self.states.last_mut().unwrap();
-            state.initialize();
+            state.initialize(engine);
         }
     }
-    fn pop(&mut self) {
+    fn pop(&mut self, engine: &mut Engine) {
         if self.active {
             if let Some(mut state) = self.states.pop() {
-                state.cleanup();
+                state.cleanup(engine);
             }
 
             if let Some(state) = self.states.last_mut() {
-                state.resume();
+                state.resume(engine);
             } else {
                 self.active = false;
             }
         }
     }
-    fn switch(&mut self, state: Box<State>) {
+    fn switch(&mut self, engine: &mut Engine, state: Box<State>) {
         if self.active {
             if let Some(mut state) = self.states.pop() {
-                state.cleanup();
+                state.cleanup(engine);
             }
 
             self.states.push(state);
             let state = self.states.last_mut().unwrap();
-            state.initialize();
+            state.initialize(engine);
         }
     }
 }

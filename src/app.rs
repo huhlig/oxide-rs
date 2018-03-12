@@ -17,39 +17,34 @@
 //! Application Framework
 //!
 
+use super::data::Data;
 use super::event::Event;
 use super::engine::Engine;
 use super::state::{State, StateManager};
-use std::any::Any;
 use std::time::Instant;
 
 ///
 ///
 ///
-pub struct Application<'a, D>
-    where
-        D: Any + Send + Sync
-{
-    states: StateManager<'a>,
-    frame_time: f64,
-    data: D,
+pub struct Application<'a, D: Data> {
+    states: StateManager<'a, D>,
+    engine: Engine<D>,
 }
 
-impl<'a, D> Application<'a, D>
-    where
-        D: Any + Send + Sync
-{
-    pub(crate) fn create<S: State + 'a>(initial_state: S, data: D) -> Application<'a, D> {
+impl<'a, D: Data> Application<'a, D> {
+    pub fn new<S: State<D> + 'a>(initial_state: S, data: D) -> Application<'a, D> {
         let states = StateManager::new(initial_state);
-        let frame_time = 1.0 / 30.0;
-        Application { states, frame_time, data }
+        let engine = Engine::new(data);
+        Application { states, engine }
     }
     pub fn run(&mut self) {
         let mut last_update = Instant::now();
         let mut accumulator = 0.0;
+        self.states.start(&mut self.engine);
 
-        loop {
-            while accumulator < self.frame_time {
+        while self.states.active() {
+            let frame_time = self.engine.get_frame_time();
+            while accumulator < frame_time {
                 let new_time = Instant::now();
                 let delta = {
                     let duration = new_time.duration_since(last_update);
@@ -58,47 +53,46 @@ impl<'a, D> Application<'a, D>
                 accumulator += delta;
                 last_update = new_time;
                 // Handle Events Here
-                self.states.handle(&mut self, Event::Empty);
-                self.states.update(&mut self, delta);
+                self.states.handle(&mut self.engine, Event::Empty);
+                self.states.update(&mut self.engine, delta);
             }
 
-            self.states.render(&mut self);
-            accumulator -= self.frame_time;
+            self.states.render(&mut self.engine);
+            accumulator -= frame_time;
         }
     }
 }
 
-impl<'a, D> Engine for Application<'a,D>
-    where
-        D: Any + Send + Sync
-{
-
-}
-
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::Transition;
+
+    struct EmptyData;
+
+    impl Data for EmptyData{}
 
     struct State1(u64);
 
-    impl State for State1 {
-        fn initialize(&mut self, engine: &mut Engine) {
-            println!("State Initialized");
+    impl State<EmptyData> for State1 {
+        fn initialize(&mut self, _engine: &mut Engine<EmptyData>) {
+            println!("State0 Initialized");
         }
-        fn cleanup(&mut self, engine: &mut Engine) {
-            println!("State Cleaned up");
+        fn cleanup(&mut self, _engine: &mut Engine<EmptyData>) {
+            println!("State0 Cleaned up");
         }
-        fn suspend(&mut self, engine: &mut Engine) {
-            println!("State Suspended");
+        fn suspend(&mut self, _engine: &mut Engine<EmptyData>) {
+            println!("State0 Suspended");
         }
-        fn resume(&mut self, engine: &mut Engine) {
-            println!("State Resumed");
+        fn resume(&mut self, _engine: &mut Engine<EmptyData>) {
+            println!("State0 Resumed");
         }
-        fn handle(&mut self, engine: &mut Engine, event: Event) -> Transition {
-            println!("State1 Handled {:?}", event);
+        fn handle(&mut self, _engine: &mut Engine<EmptyData>, event: Event) -> Transition<EmptyData> {
+            println!("State0 Handled: {:?}", event);
+            Transition::Continue
         }
-        fn update(&mut self, engine: &mut Engine, delta: f64) -> Transition {
-            println!("State Updated: {:?} sec delta", delta);
+        fn update(&mut self, _engine: &mut Engine<EmptyData>, delta: f64) -> Transition<EmptyData> {
+            println!("State0 Updated: {:?} sec delta", delta);
             if self.0 > 0 {
                 self.0 -= 1;
                 Transition::Continue
@@ -106,16 +100,16 @@ mod tests {
                 Transition::Pop
             }
         }
-        fn render(&mut self, engine: &mut Engine) {
-            println!("State Rendered");
+        fn render(&mut self, _engine: &mut Engine<EmptyData>) {
+            println!("State0 Rendered");
         }
     }
 
-    struct EmptyData;
 
     #[test]
     fn test_runloop() {
-        let mut sm = Application::create(State1(65_535), EmptyData);
+        println!("Starting Runloop Test");
+        let mut sm = Application::new(State1(25), EmptyData);
         sm.run();
     }
 }

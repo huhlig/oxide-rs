@@ -17,20 +17,21 @@
 //! State Engine
 //!
 
+use super::data::Data;
 use super::engine::Engine;
 use super::event::Event;
 
 /// State Transition commands
-pub enum Transition {
+pub enum Transition<D: Data> {
     /// No Transition
     Continue,
     /// Call Cleanup on current state, pop it off the stack, call resume on the next state if it
     /// exist.
     Pop,
     /// Call Suspend the current state, push a new State onto the stack, call initialize.
-    Push(Box<State>),
+    Push(Box<State<D>>),
     /// Call cleanup on the current state, pop it off the stackSwitch to a new State by Popping off the old one and Pushing on a new one.
-    Switch(Box<State>),
+    Switch(Box<State<D>>),
     /// Pop All States and shut down.
     Halt,
 }
@@ -38,33 +39,33 @@ pub enum Transition {
 ///
 /// Engine State
 ///
-pub trait State {
+pub trait State<D: Data> {
     /// Called Once on State creation.
-    fn initialize(&mut self, engine: &mut Engine);
+    fn initialize(&mut self, engine: &mut Engine<D>);
     /// Called Once before State destruction.
-    fn cleanup(&mut self, engine: &mut Engine);
+    fn cleanup(&mut self, engine: &mut Engine<D>);
     /// Called if State is suspended.
-    fn suspend(&mut self, engine: &mut Engine);
+    fn suspend(&mut self, engine: &mut Engine<D>);
     /// Called when state returns from suspension.
-    fn resume(&mut self, engine: &mut Engine);
+    fn resume(&mut self, engine: &mut Engine<D>);
     /// Handle Events
-    fn handle(&mut self, engine: &mut Engine, event: Event) -> Transition;
+    fn handle(&mut self, engine: &mut Engine<D>, event: Event) -> Transition<D>;
     /// Called Periodically during updates.
-    fn update(&mut self, engine: &mut Engine, delta: f64) -> Transition;
+    fn update(&mut self, engine: &mut Engine<D>, delta: f64) -> Transition<D>;
     /// Render State to Screen.
-    fn render(&mut self, engine: &mut Engine) -> Transition;
+    fn render(&mut self, engine: &mut Engine<D>);
 }
 
 
 /// Simple Stack based State Machine
-pub(crate) struct StateManager<'a> {
-    states: Vec<Box<State + 'a>>,
+pub(crate) struct StateManager<'a, D: Data> {
+    states: Vec<Box<State<D> + 'a>>,
     active: bool,
 }
 
-impl<'a> StateManager<'a> {
+impl<'a, D: Data> StateManager<'a, D> {
     /// Create a new State Machine with an Initial State
-    pub(crate) fn new<S: State + 'a>(initial_state: S) -> StateManager<'a> {
+    pub(crate) fn new<S: State<D> + 'a>(initial_state: S) -> StateManager<'a, D> {
         StateManager {
             states: vec![Box::new(initial_state)],
             active: false,
@@ -73,13 +74,13 @@ impl<'a> StateManager<'a> {
     pub(crate) fn active(&self) -> bool {
         self.active
     }
-    pub(crate) fn start(&mut self, engine: &mut Engine) {
+    pub(crate) fn start(&mut self, engine: &mut Engine<D>) {
         if !self.active {
             self.states.last_mut().unwrap().initialize(engine);
             self.active = true;
         }
     }
-    pub(crate) fn handle(&mut self, engine: &mut Engine, event: Event) {
+    pub(crate) fn handle(&mut self, engine: &mut Engine<D>, event: Event) {
         if self.active {
             let transition = match self.states.last_mut() {
                 Some(state) => state.handle(engine, event),
@@ -88,7 +89,7 @@ impl<'a> StateManager<'a> {
             self.transition(engine, transition);
         }
     }
-    pub(crate) fn update(&mut self, engine: &mut Engine, delta: f64) {
+    pub(crate) fn update(&mut self, engine: &mut Engine<D>, delta: f64) {
         if self.active {
             let transition = match self.states.last_mut() {
                 Some(state) => state.update(engine, delta),
@@ -97,15 +98,12 @@ impl<'a> StateManager<'a> {
             self.transition(engine, transition);
         }
     }
-    pub(crate) fn render(&mut self, engine: &mut Engine) {
+    pub(crate) fn render(&mut self, engine: &mut Engine<D>) {
         if self.active {
-            match self.states.last_mut() {
-                Some(state) => state.render(engine),
-                None => Transition::Continue,
-            };
+            self.states.last_mut().unwrap().render(engine);
         }
     }
-    pub(crate) fn stop(&mut self, engine: &mut Engine) {
+    pub(crate) fn stop(&mut self, engine: &mut Engine<D>) {
         if self.active {
             while let Some(mut state) = self.states.pop() {
                 state.cleanup(engine);
@@ -113,7 +111,7 @@ impl<'a> StateManager<'a> {
             self.active = false;
         }
     }
-    fn transition(&mut self, engine: &mut Engine, transition: Transition) {
+    fn transition(&mut self, engine: &mut Engine<D>, transition: Transition<D>) {
         if self.active {
             match transition {
                 Transition::Continue => (),
@@ -124,7 +122,7 @@ impl<'a> StateManager<'a> {
             }
         }
     }
-    fn push(&mut self, engine: &mut Engine, state: Box<State>) {
+    fn push(&mut self, engine: &mut Engine<D>, state: Box<State<D>>) {
         if self.active {
             // Suspend currently active state.
             if let Some(state) = self.states.last_mut() {
@@ -136,7 +134,7 @@ impl<'a> StateManager<'a> {
             state.initialize(engine);
         }
     }
-    fn pop(&mut self, engine: &mut Engine) {
+    fn pop(&mut self, engine: &mut Engine<D>) {
         if self.active {
             if let Some(mut state) = self.states.pop() {
                 state.cleanup(engine);
@@ -149,7 +147,7 @@ impl<'a> StateManager<'a> {
             }
         }
     }
-    fn switch(&mut self, engine: &mut Engine, state: Box<State>) {
+    fn switch(&mut self, engine: &mut Engine<D>, state: Box<State<D>>) {
         if self.active {
             if let Some(mut state) = self.states.pop() {
                 state.cleanup(engine);
@@ -162,9 +160,13 @@ impl<'a> StateManager<'a> {
     }
 }
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::event::Event;
+
+    struct EmptyData;
+    impl Data for EmptyData{}
 
     struct State1(u8, u8);
 
@@ -172,24 +174,25 @@ mod tests {
 
     struct State3(u8);
 
-    impl State for State1 {
-        fn initialize(&mut self, engine: &mut Engine) {
+    impl State<EmptyData> for State1 {
+        fn initialize(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State1 Initialized");
         }
-        fn cleanup(&mut self, engine: &mut Engine) {
+        fn cleanup(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State1 Cleaned up");
         }
-        fn suspend(&mut self, engine: &mut Engine) {
+        fn suspend(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State1 Suspended");
         }
-        fn resume(&mut self, engine: &mut Engine) {
+        fn resume(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State1 Resumed");
         }
-        fn handle(&mut self, engine: &mut Engine, event: Event) -> Transition {
-            println!("State1 Handled {:?}", event);
+        fn handle(&mut self, _engine: &mut Engine<EmptyData>, event: Event) -> Transition<EmptyData> {
+            println!("State1 Handled: {:?}", event);
+            Transition::Continue
         }
-        fn update(&mut self, engine: &mut Engine, delta: f64) -> Transition {
-            println!("State1 Updated {:?}", event);
+        fn update(&mut self, _engine: &mut Engine<EmptyData>, delta: f64) -> Transition<EmptyData> {
+            println!("State1 Updated: {:?} sec delta", delta);
             if self.0 > 0 {
                 self.0 -= 1;
                 Transition::Continue
@@ -200,29 +203,30 @@ mod tests {
                 Transition::Switch(Box::new(State3(10)))
             }
         }
-        fn render(&self, engine: &mut Engine) {
+        fn render(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State1 Rendered");
         }
     }
 
-    impl State for State2 {
-        fn initialize(&mut self, engine: &mut Engine) {
+    impl State<EmptyData> for State2 {
+        fn initialize(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State2 Initialized");
         }
-        fn cleanup(&mut self, engine: &mut Engine) {
+        fn cleanup(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State2 Cleaned up");
         }
-        fn suspend(&mut self, engine: &mut Engine) {
+        fn suspend(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State2 Suspended");
         }
-        fn resume(&mut self, engine: &mut Engine) {
+        fn resume(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State2 Resumed");
         }
-        fn handle(&mut self, engine: &mut Engine, event: Event) -> Transition {
-            println!("State2 Handled {:?}", event);
+        fn handle(&mut self, _engine: &mut Engine<EmptyData>, event: Event) -> Transition<EmptyData> {
+            println!("State2 Handled: {:?}", event);
+            Transition::Continue
         }
-        fn update(&mut self, engine: &mut Engine, delta: f64) -> Transition {
-            println!("State2 Updated {:?}", event);
+        fn update(&mut self, _engine: &mut Engine<EmptyData>, delta: f64) -> Transition<EmptyData> {
+            println!("State2 Updated {:?} sec", delta);
             if self.0 > 0 {
                 self.0 -= 1;
                 Transition::Continue
@@ -230,27 +234,30 @@ mod tests {
                 Transition::Pop
             }
         }
-        fn render(&mut self, engine: &mut Engine) {
+        fn render(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State2 Rendered");
         }
     }
 
-    impl State for State3 {
-        fn initialize(&mut self, engine: &mut Engine) { println!("State3 Initialized"); }
-        fn cleanup(&mut self, engine: &mut Engine) {
+    impl State<EmptyData> for State3 {
+        fn initialize(&mut self, _engine: &mut Engine<EmptyData>) {
+            println!("State3 Initialized");
+        }
+        fn cleanup(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State3 Cleaned up");
         }
-        fn suspend(&mut self, engine: &mut Engine) {
+        fn suspend(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State3 Suspended");
         }
-        fn resume(&mut self, engine: &mut Engine) {
+        fn resume(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State3 Resumed");
         }
-        fn handle(&mut self, engine: &mut Engine, event: Event) -> Transition {
-            println!("State3 Handled {:?}", event);
+        fn handle(&mut self, _engine: &mut Engine<EmptyData>, event: Event) -> Transition<EmptyData> {
+            println!("State3 Handled: {:?}", event);
+            Transition::Continue
         }
-        fn update(&mut self, engine: &mut Engine, delta: f64) -> Transition {
-            println!("State3 Updated {:?}", event);
+        fn update(&mut self, _engine: &mut Engine<EmptyData>, delta: f64) -> Transition<EmptyData> {
+            println!("State3 Updated {:?} sec delta", delta);
             if self.0 > 0 {
                 self.0 -= 1;
                 Transition::Continue
@@ -258,21 +265,24 @@ mod tests {
                 Transition::Pop
             }
         }
-        fn render(&mut self, engine: &mut Engine) {
+        fn render(&mut self, _engine: &mut Engine<EmptyData>) {
             println!("State3 Rendered");
         }
     }
 
     #[test]
     fn switch_pop() {
-        let mut sm = StateMachine::new(State1(10, 5));
-        sm.start();
+        println!("Starting StateManager Test");
+        let data = EmptyData;
+        let mut engine = Engine::new(data);
+        let mut sm = StateManager::new(State1(10, 5));
+        sm.start(&mut engine);
 
         for _ in 0..8 {
             for _ in 0..4 {
-                sm.update();
+                sm.update(&mut engine, 0.1);
             }
-            sm.render();
+            sm.render(&mut engine);
             assert!(sm.active());
         }
 

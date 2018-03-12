@@ -14,7 +14,27 @@
 // limitations under the License.
 //
 
-/// Engine API Layer
-pub trait Engine {
+use super::data::Data;
 
+/// Engine API Layer
+pub struct Engine<D: Data> {
+    frame_time: f64,
+    data: D,
+}
+
+impl<D: Data> Engine<D> {
+    pub(crate) fn new(data: D) -> Engine<D> {
+        let frame_time = 1.0 / 30.0;
+        Engine { frame_time, data }
+    }
+    pub fn data(&mut self) -> &mut D {
+        &mut self.data
+    }
+    pub fn set_fps(&mut self, fps: f64) {
+        self.frame_time = 1.0 / fps
+    }
+    #[inline]
+    pub(crate) fn get_frame_time(&self) -> f64 {
+        self.frame_time
+    }
 }
